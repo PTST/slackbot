@@ -17,6 +17,45 @@ def get_channels(sc):
         channels[item["name"]] = item["id"]
     return channels
 
+def get_messages(sc, channel_id, ts):
+    messages = []
+    timestamps = []
+    data = sc.api_call("channels.history", channel=channel_id, oldest=ts)
+    if len(data["messages"]) > 0:
+        for item in data["messages"]:
+            if "bot_id" not in item:
+                messages.append({"user": item["user"], "message": item["text"]})
+            timestamps.append(float(item["ts"]))
+        latest_ts = str(max(timestamps)+0.5)
+
+    else:
+        latest_ts = ts
+
+    return messages, latest_ts
+
+def post_confirm_message(sc, message, channel):
+    sc.api_call('chat.postMessage',
+                channel=channel,
+                text=message,
+                username='SkyNet Alpha',
+                icon_emoji=':robot_face:',
+                attachments=[{"text": "Are you sure you want to delete this order?",
+                            "callback_id": "12312",
+                            "attachment_type": "default",
+                            "actions": [{"name": "confirm",
+                                        "text": "Yes",
+                                        "type": "button",
+                                        "value": "yes",
+                                        "confirm": {"title": "Are you sure?",
+                                                    "text": "Are you completely sure?",
+                                                    "ok_text": "Yes",
+                                                    "dismiss_text": "No"}},
+                                        {"name": "confirm",
+                                        "text": "No",
+                                        "type": "button",
+                                        "value": "No"}]}])
+
+
 def get_latest_message(sc, channel_id):
     message = {}
     data = sc.api_call("channels.info", channel=channel_id)
@@ -55,6 +94,7 @@ def get_package(provider, url):
 with open('settings.json', 'r') as f:
     settings = json.load(f)
 
+timestamp = settings["latest_ts"]
 token = settings["token"]
 sc = SlackClient(token)
 
@@ -70,7 +110,6 @@ keys_to_delete = []
 channels = get_channels(sc)
 channel = channels["bot"]
 
-
 """
  /$$       /$$$$$$$$ /$$$$$$$$       /$$$$$$$$ /$$   /$$ /$$$$$$$$       /$$      /$$  /$$$$$$   /$$$$$$  /$$$$$$  /$$$$$$        /$$$$$$$  /$$$$$$$$  /$$$$$$  /$$$$$$ /$$   /$$
 | $$      | $$_____/|__  $$__/      |__  $$__/| $$  | $$| $$_____/      | $$$    /$$$ /$$__  $$ /$$__  $$|_  $$_/ /$$__  $$      | $$__  $$| $$_____/ /$$__  $$|_  $$_/| $$$ | $$
@@ -81,68 +120,96 @@ channel = channels["bot"]
 | $$$$$$$$| $$$$$$$$   | $$            | $$   | $$  | $$| $$$$$$$$      | $$ \/  | $$| $$  | $$|  $$$$$$/ /$$$$$$|  $$$$$$/      | $$$$$$$/| $$$$$$$$|  $$$$$$/ /$$$$$$| $$ \  $$
 |________/|________/   |__/            |__/   |__/  |__/|________/      |__/     |__/|__/  |__/ \______/ |______/ \______/       |_______/ |________/ \______/ |______/|__/  \__/
 """
-
-
 while True:
     with open('orders.json', 'w') as f:
         json.dump(orders, f)
-
-    latest_message = get_latest_message(sc, channel)
+    if settings["latest_ts"] != timestamp:
+        settings["latest_ts"] = timestamp
+        with open('settings.json', 'w') as f:
+            json.dump(settings, f)
 
     for key, value in orders.items():
         for k, v in value.items():
             if k == "tracking":
-                package_status, package_delivered = get_package(v["provider"], v["url"])
-                if package_status is None:
-                    continue
-                if package_status[0] != v["status"]:
-                    v["status"] = package_status[0]
-                    post_message(sc, package_status[0], channel)
-                if package_delivered:
-                    post_message(sc, "This package has been delivered to you. I'll no longer track this package.", channel)
-                    keys_to_delete.append(key)
+                if v["last_updated"]+60 < time.time():
+                    package_status, package_delivered = get_package(v["provider"], v["url"])
+                    if package_status is None:
+                        continue
+                    if package_status[0] != v["status"]:
+                        v["status"] = package_status[0]
+                        post_message(sc, package_status[0], channel)
+                    if package_delivered:
+                        post_message(sc, "This package has been delivered to you. I'll no longer track this package.", channel)
+                        keys_to_delete.append(key)
+                    v["last_updated"] = time.time()
+
+
 
     for key in keys_to_delete:
         orders.pop(key)
 
     keys_to_delete = []
 
-    if latest_message["user"] == "SkyNet Alpha":
-        time.sleep(2)
-        continue
+    messages, timestamp = get_messages(sc, channel, timestamp)
+    for msg in messages:
 
-    if latest_message["message"].lower().startswith("orders"):
-        post_message(sc, f"Current orders:\n{orders}", channel)
-        continue
-
-    if latest_message["message"].lower().startswith("track"):
-        params = latest_message["message"].lower().split(" ")
-        params.pop(0)
-        if len(params) != 2:
-            post_message(sc, "Wrong amount of paramaters.\nPlease format message as\"Tracking <provider> <tracking no>\"", channel)
+        if msg["user"] == "SkyNet Alpha":
+            time.sleep(2)
             continue
 
-        provider = params[0]
-        tracking_no = params[1]
-        if provider not in providers:
-            post_message(sc, f"The first parameter should be the tracking provider.\nThe following providers are supported \"{', '.join(list(providers.keys()))}\"", channel)
+        message = msg["message"].lower()
+
+        if message.startswith("orders"):
+            post_message(sc, f"Current orders:\n{orders}", channel)
             continue
 
-        get_url = providers[provider] + tracking_no
-        already_tracking = False
+        if message.startswith("track"):
+            params = msg["message"].lower().split(" ")
+            params.pop(0)
+            if len(params) != 2:
+                post_message(sc, "Wrong amount of paramaters.\nPlease format message as \"Tracking <provider> <tracking no>\"", channel)
+                continue
 
-        for key, value in orders.items():
-            for k, v in value.items():
-                if k == "tracking":
-                    already_tracking = (v["url"] == get_url)
+            provider = params[0]
+            tracking_no = params[1]
+            if provider not in providers:
+                post_message(sc, f"The first parameter should be the tracking provider.\nThe following providers are supported \"{', '.join(list(providers.keys()))}\"", channel)
+                continue
 
-        if already_tracking:
-            post_message(sc, "This package is already being tracked", channel)
-        else:
-            orders[str(uuid.uuid4())] = {"tracking":{"provider": provider, "url": get_url, "status": ""}}
-            post_message(sc, "I'll start tracking this package and keep you updated on in", channel)
-        continue
+            get_url = providers[provider] + tracking_no
+            already_tracking = False
 
+            for key, value in orders.items():
+                for k, v in value.items():
+                    if k == "tracking":
+                        already_tracking = (v["url"] == get_url)
+                        latest_status = v["status"]
 
-    post_message(sc, "Not a valid order", channel)
+            if already_tracking:
+                post_message(sc, f"This package is already being tracked\nThe last status was:\n{latest_status}", channel)
+            else:
+                orders[str(uuid.uuid4())] = {"tracking":{"provider": provider, "url": get_url, "status": "", "last_updated": 0}}
+                post_message(sc, "I'll start tracking this package and keep you updated on in", channel)
+            continue
+
+        if message.startswith("remove") or message.startswith("delete"):
+            params = msg["message"].lower().split(" ")
+            params.pop(0)
+            if len(params) != 1:
+                post_message(sc, "Wrong amount of paramaters.\nPlease format message as \"Remove|Delete <order_id>\"", channel)
+                continue
+            order_id = params[0]
+            if order_id not in orders:
+                current_orders = "\n".join(list(orders.keys()))
+                if len(orders) == 0:
+                    post_message(sc, f"No active orders right now, wanna give me something to do?", channel)
+                else:
+                    post_message(sc, f"Could not find order_id in orders, the following order_id are available:\n{current_orders}", channel)
+                continue
+            orders.pop(order_id)
+            post_message(sc, f"{order_id} succesfully removed from orders", channel)
+            continue
+
+        post_message(sc, "Not a valid order", channel)
+
     time.sleep(2)
