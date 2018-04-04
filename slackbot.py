@@ -137,9 +137,9 @@ while True:
                         continue
                     if package_status[0] != v["status"]:
                         v["status"] = package_status[0]
-                        post_message(sc, package_status[0], channel)
+                        post_message(sc, f":{v['provider']}: {v['tracking_no']} - {package_status[0]}", channel)
                     if package_delivered:
-                        post_message(sc, "This package has been delivered to you. I'll no longer track this package.", channel)
+                        post_message(sc, f":{v['provider']}: {v['tracking_no']} - This package has been delivered to you. I'll no longer track this package.", channel)
                         keys_to_delete.append(key)
                     v["last_updated"] = time.time()
 
@@ -160,7 +160,10 @@ while True:
         message = msg["message"].lower()
 
         if message.startswith("orders"):
-            post_message(sc, f"Current orders:\n{orders}", channel)
+            if len(orders) == 0:
+                post_message(sc, f"No active orders right now, wanna give me something to do? :raised_hands:", channel)
+            else:
+                post_message(sc, f"Current orders:\n{orders}", channel)
             continue
 
         if message.startswith("track"):
@@ -182,14 +185,14 @@ while True:
             for key, value in orders.items():
                 for k, v in value.items():
                     if k == "tracking":
-                        already_tracking = (v["url"] == get_url)
+                        already_tracking = (v["tracking_no"] == tracking_no)
                         latest_status = v["status"]
 
             if already_tracking:
                 post_message(sc, f"This package is already being tracked\nThe last status was:\n{latest_status}", channel)
             else:
-                orders[str(uuid.uuid4())] = {"tracking":{"provider": provider, "url": get_url, "status": "", "last_updated": 0}}
-                post_message(sc, "I'll start tracking this package and keep you updated on it. (y)", channel)
+                orders[str(uuid.uuid4())] = {"tracking":{"provider": provider, "tracking_no": tracking_no, "url": get_url, "status": "", "last_updated": 0}}
+                post_message(sc, "I'll start tracking this package and keep you updated on it. :package:", channel)
             continue
 
         if message.startswith("remove") or message.startswith("delete"):
@@ -199,17 +202,21 @@ while True:
                 post_message(sc, "Wrong amount of paramaters.\nPlease format message as \"Remove|Delete <order_id>\"", channel)
                 continue
             order_id = params[0]
+            if order_id == "--all":
+                orders = {}
+                post_message(sc, "Removed all active orders :exclamation:", channel)
+                continue
             if order_id not in orders:
                 current_orders = "\n".join(list(orders.keys()))
                 if len(orders) == 0:
-                    post_message(sc, f"No active orders right now, wanna give me something to do?", channel)
+                    post_message(sc, f"No active orders right now, wanna give me something to do? :raised_hands:", channel)
                 else:
                     post_message(sc, f"Could not find order_id in orders, the following order_id are available:\n{current_orders}", channel)
                 continue
             orders.pop(order_id)
-            post_message(sc, f"{order_id} succesfully removed from orders", channel)
+            post_message(sc, f"{order_id} succesfully removed from orders :exclamation:", channel)
             continue
 
-        post_message(sc, "Not a valid order", channel)
+        post_message(sc, "Not a valid order :question:", channel)
 
     time.sleep(2)
