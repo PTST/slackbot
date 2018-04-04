@@ -189,7 +189,7 @@ while True:
                 post_message(sc, f"This package is already being tracked\nThe last status was:\n{latest_status}", channel)
             else:
                 orders[str(uuid.uuid4())] = {"tracking":{"provider": provider, "url": get_url, "status": "", "last_updated": 0}}
-                post_message(sc, "I'll start tracking this package and keep you updated on in", channel)
+                post_message(sc, "I'll start tracking this package and keep you updated on it. (y)", channel)
             continue
 
         if message.startswith("remove") or message.startswith("delete"):
