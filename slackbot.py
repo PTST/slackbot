@@ -188,7 +188,8 @@ while True:
             for key, value in orders.items():
                 for k, v in value.items():
                     if k == "tracking":
-                        already_tracking = (v["tracking_no"] == tracking_no)
+                        if v["tracking_no"] == tracking_no:
+                            already_tracking = True
                         latest_status = v["status"]
 
             if already_tracking:
