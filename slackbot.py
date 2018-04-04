@@ -3,12 +3,14 @@ import time
 import uuid
 import requests
 import json
+import os
 
+script_dir = os.path.dirname(__file__)
 
 def post_message(sc, message, channel):
-    sc.api_call('chat.postMessage', channel=channel,
-                text=message, username='SkyNet Alpha',
-                icon_emoji=':robot_face:')
+    sc.api_call("chat.postMessage", channel=channel,
+                text=message, username="SkyNet Alpha",
+                icon_emoji=":robot_face:")
 
 def get_channels(sc):
     channels = {}
@@ -34,11 +36,11 @@ def get_messages(sc, channel_id, ts):
     return messages, latest_ts
 
 def post_confirm_message(sc, message, channel):
-    sc.api_call('chat.postMessage',
+    sc.api_call("chat.postMessage",
                 channel=channel,
                 text=message,
-                username='SkyNet Alpha',
-                icon_emoji=':robot_face:',
+                username="SkyNet Alpha",
+                icon_emoji=":robot_face:",
                 attachments=[{"text": "Are you sure you want to delete this order?",
                             "callback_id": "12312",
                             "attachment_type": "default",
@@ -75,7 +77,7 @@ def get_package(provider, url):
             data = r.json()["tuStatus"][0]["history"]
             delivered = (r.json()["tuStatus"][0]["progressBar"]["statusInfo"].lower() == "delivered")
             for item in data:
-                return_data.append(f'{item["date"]} {item["time"]} - {item["evtDscr"]}')
+                return_data.append("{0} {1} - {2}".format(item["date"], item["time"], item["evtDscr"]))
             return(return_data, delivered)
 
         if provider == "postnord":
@@ -85,13 +87,13 @@ def get_package(provider, url):
             data = r.json()["response"]["trackingInformationResponse"]["shipments"][0]["items"][0]["events"]
             delivered = (r.json()["response"]["trackingInformationResponse"]["shipments"][0]["status"].lower() == "delivered")
             for item in data:
-                return_data.append(f'{item["eventTime"].replace("T", " ")} - {item["eventDescription"]}')
+                return_data.append("{0} - {1}".format(item["eventTime"].replace("T", " "), item["eventDescription"]))
             return(return_data, delivered)
     except Exception:
         return(None, False)
 
 
-with open('settings.json', 'r') as f:
+with open(os.path.join(script_dir, "settings.json"), "r") as f:
     settings = json.load(f)
 
 timestamp = settings["latest_ts"]
@@ -101,7 +103,7 @@ sc = SlackClient(token)
 providers = {"postnord": "https://www.postnord.dk/api/shipment/", "gls": "https://gls-group.eu/app/service/open/rest/EU/en/rstt001?match="}
 
 try:
-    with open('orders.json', 'r') as f:
+    with open(os.path.join(script_dir, "orders.json"), "r") as f:
         orders = json.load(f)
 except FileNotFoundError:
     orders = {}
@@ -109,6 +111,7 @@ except FileNotFoundError:
 keys_to_delete = []
 channels = get_channels(sc)
 channel = channels["bot"]
+post_message(sc, "HEYOOO, i'm online again! :raised_hands:", channel)
 
 """
  /$$       /$$$$$$$$ /$$$$$$$$       /$$$$$$$$ /$$   /$$ /$$$$$$$$       /$$      /$$  /$$$$$$   /$$$$$$  /$$$$$$  /$$$$$$        /$$$$$$$  /$$$$$$$$  /$$$$$$  /$$$$$$ /$$   /$$
@@ -121,11 +124,11 @@ channel = channels["bot"]
 |________/|________/   |__/            |__/   |__/  |__/|________/      |__/     |__/|__/  |__/ \______/ |______/ \______/       |_______/ |________/ \______/ |______/|__/  \__/
 """
 while True:
-    with open('orders.json', 'w') as f:
+    with open(os.path.join(script_dir, "orders.json"), "w") as f:
         json.dump(orders, f)
     if settings["latest_ts"] != timestamp:
         settings["latest_ts"] = timestamp
-        with open('settings.json', 'w') as f:
+        with open(os.path.join(script_dir, "settings.json"), "w") as f:
             json.dump(settings, f)
 
     for key, value in orders.items():
@@ -137,9 +140,9 @@ while True:
                         continue
                     if package_status[0] != v["status"]:
                         v["status"] = package_status[0]
-                        post_message(sc, f":{v['provider']}: {v['tracking_no']} - {package_status[0]}", channel)
+                        post_message(sc, ":{0}: {1} - {2}".format(provider, tracking_no, package_status[0]), channel)
                     if package_delivered:
-                        post_message(sc, f":{v['provider']}: {v['tracking_no']} - This package has been delivered to you. I'll no longer track this package.", channel)
+                        post_message(sc, ":{0}: {1} - This package has been delivered to you. I'll no longer track this package.".format(provider, tracking_no), channel)
                         keys_to_delete.append(key)
                     v["last_updated"] = time.time()
 
@@ -161,9 +164,9 @@ while True:
 
         if message.startswith("orders"):
             if len(orders) == 0:
-                post_message(sc, f"No active orders right now, wanna give me something to do? :raised_hands:", channel)
+                post_message(sc, "No active orders right now, wanna give me something to do? :raised_hands:", channel)
             else:
-                post_message(sc, f"Current orders:\n{orders}", channel)
+                post_message(sc, "Current orders:\n{0}".format(orders), channel)
             continue
 
         if message.startswith("track"):
@@ -176,7 +179,7 @@ while True:
             provider = params[0]
             tracking_no = params[1]
             if provider not in providers:
-                post_message(sc, f"The first parameter should be the tracking provider.\nThe following providers are supported \"{', '.join(list(providers.keys()))}\"", channel)
+                post_message(sc, "The first parameter should be the tracking provider.\nThe following providers are supported \"{0}\"".format(", ".join(list(providers.keys()))), channel)
                 continue
 
             get_url = providers[provider] + tracking_no
@@ -189,7 +192,7 @@ while True:
                         latest_status = v["status"]
 
             if already_tracking:
-                post_message(sc, f"This package is already being tracked\nThe last status was:\n{latest_status}", channel)
+                post_message(sc, "This package is already being tracked\nThe last status was:\n{0}".format(latest_status), channel)
             else:
                 orders[str(uuid.uuid4())] = {"tracking":{"provider": provider, "tracking_no": tracking_no, "url": get_url, "status": "", "last_updated": 0}}
                 post_message(sc, "I'll start tracking this package and keep you updated on it. :package:", channel)
@@ -209,12 +212,12 @@ while True:
             if order_id not in orders:
                 current_orders = "\n".join(list(orders.keys()))
                 if len(orders) == 0:
-                    post_message(sc, f"No active orders right now, wanna give me something to do? :raised_hands:", channel)
+                    post_message(sc, "No active orders right now, wanna give me something to do? :raised_hands:", channel)
                 else:
-                    post_message(sc, f"Could not find order_id in orders, the following order_id are available:\n{current_orders}", channel)
+                    post_message(sc, "Could not find order_id in orders, the following order_id are available:\n{0}".format(current_orders), channel)
                 continue
             orders.pop(order_id)
-            post_message(sc, f"{order_id} succesfully removed from orders :exclamation:", channel)
+            post_message(sc, "{0} succesfully removed from orders :exclamation:".format(order_id), channel)
             continue
 
         post_message(sc, "Not a valid order :question:", channel)
