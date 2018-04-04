@@ -108,6 +108,7 @@ try:
 except FileNotFoundError:
     orders = {}
 
+should_restart = False
 keys_to_delete = []
 channels = get_channels(sc)
 channel = channels["bot"]
@@ -131,6 +132,9 @@ while True:
         with open(os.path.join(script_dir, "settings.json"), "w") as f:
             json.dump(settings, f)
 
+    if should_restart:
+        os.execl(os.path.join(script_dir, "reboot.sh"), '')
+
     for key, value in orders.items():
         for k, v in value.items():
             if k == "tracking":
@@ -140,9 +144,9 @@ while True:
                         continue
                     if package_status[0] != v["status"]:
                         v["status"] = package_status[0]
-                        post_message(sc, ":{0}: {1} - {2}".format(provider, tracking_no, package_status[0]), channel)
+                        post_message(sc, ":{0}: {1} - {2}".format(v["provider"], v["tracking_no"], package_status[0]), channel)
                     if package_delivered:
-                        post_message(sc, ":{0}: {1} - This package has been delivered to you. I'll no longer track this package.".format(provider, tracking_no), channel)
+                        post_message(sc, ":{0}: {1} - This package has been delivered to you. I'll no longer track this package.".format(v["provider"], v["tracking_no"]), channel)
                         keys_to_delete.append(key)
                     v["last_updated"] = time.time()
 
@@ -161,6 +165,10 @@ while True:
             continue
 
         message = msg["message"].lower()
+        if message == "--restart robot":
+            post_message(sc, "Restarting robot", channel)
+            should_restart = True
+            continue
 
         if message.startswith("orders"):
             if len(orders) == 0:
