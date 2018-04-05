@@ -8,9 +8,7 @@ import os
 script_dir = os.path.dirname(__file__)
 
 def post_message(sc, message, channel):
-    sc.api_call("chat.postMessage", channel=channel,
-                text=message, username="SkyNet Alpha",
-                icon_emoji=":robot_face:")
+    sc.api_call("chat.postMessage", channel=channel, text=message)
 
 def get_channels(sc):
     channels = {}
@@ -103,8 +101,10 @@ with open(os.path.join(script_dir, "settings.json"), "r") as f:
     settings = json.load(f)
 
 timestamp = settings["latest_ts"]
-token = settings["token"]
-sc = SlackClient(token)
+bot_token = settings["bot_token"]
+user_token = settings["user_token"]
+user_sc = SlackClient(user_token)
+bot_sc = SlackClient(bot_token)
 
 providers = {"postnord": "https://www.postnord.dk/api/shipment/", "gls": "https://gls-group.eu/app/service/open/rest/EU/en/rstt001?match="}
 
@@ -116,9 +116,9 @@ except FileNotFoundError:
 
 should_restart = False
 keys_to_delete = []
-channels = get_channels(sc)
+channels = get_channels(user_sc)
 channel = channels["bot"]
-post_message(sc, "HEYOOO, i'm online again! :raised_hands:", channel)
+post_message(bot_sc, "HEYOOO, i'm online again! :raised_hands:", channel)
 
 """
  /$$       /$$$$$$$$ /$$$$$$$$       /$$$$$$$$ /$$   /$$ /$$$$$$$$       /$$      /$$  /$$$$$$   /$$$$$$  /$$$$$$  /$$$$$$        /$$$$$$$  /$$$$$$$$  /$$$$$$  /$$$$$$ /$$   /$$
@@ -151,14 +151,14 @@ while True:
 
                     if package_status == "404":
                         keys_to_delete.append(key)
-                        post_message(sc, ":{0}: {1} - Does not seem to be a valid package, please try again".format(v['provider'], v['tracking_no']), channel)
+                        post_message(bot_sc, ":{0}: {1} - Does not seem to be a valid package, please try again".format(v['provider'], v['tracking_no']), channel)
                         continue
 
                     if package_status[0] != v["status"]:
                         v["status"] = package_status[0]
-                        post_message(sc, ":{0}: {1} - {2}".format(v["provider"], v["tracking_no"], package_status[0]), channel)
+                        post_message(bot_sc, ":{0}: {1} - {2}".format(v["provider"], v["tracking_no"], package_status[0]), channel)
                     if package_delivered:
-                        post_message(sc, ":{0}: {1} - This package has been delivered to you. I'll no longer track this package.".format(v["provider"], v["tracking_no"]), channel)
+                        post_message(bot_sc, ":{0}: {1} - This package has been delivered to you. I'll no longer track this package.".format(v["provider"], v["tracking_no"]), channel)
                         keys_to_delete.append(key)
                     v["last_updated"] = time.time()
 
@@ -169,7 +169,7 @@ while True:
 
     keys_to_delete = []
 
-    messages, timestamp = get_messages(sc, channel, timestamp)
+    messages, timestamp = get_messages(user_sc, channel, timestamp)
     for msg in messages:
 
         if msg["user"] == "SkyNet Alpha":
@@ -178,28 +178,28 @@ while True:
 
         message = msg["message"].lower()
         if message == "--restart robot":
-            post_message(sc, "Restarting robot", channel)
+            post_message(bot_sc, "Restarting robot", channel)
             should_restart = True
             continue
 
         if message.startswith("orders"):
             if len(orders) == 0:
-                post_message(sc, "No active orders right now, wanna give me something to do? :raised_hands:", channel)
+                post_message(bot_sc, "No active orders right now, wanna give me something to do? :raised_hands:", channel)
             else:
-                post_message(sc, "Current orders:\n{0}".format(orders), channel)
+                post_message(bot_sc, "Current orders:\n{0}".format(orders), channel)
             continue
 
         if message.startswith("track"):
             params = msg["message"].lower().split(" ")
             params.pop(0)
             if len(params) != 2:
-                post_message(sc, "Wrong amount of paramaters.\nPlease format message as \"Tracking <provider> <tracking no>\"", channel)
+                post_message(bot_sc, "Wrong amount of paramaters.\nPlease format message as \"Tracking <provider> <tracking no>\"", channel)
                 continue
 
             provider = params[0]
             tracking_no = params[1]
             if provider not in providers:
-                post_message(sc, "The first parameter should be the tracking provider.\nThe following providers are supported \"{0}\"".format(", ".join(list(providers.keys()))), channel)
+                post_message(bot_sc, "The first parameter should be the tracking provider.\nThe following providers are supported \"{0}\"".format(", ".join(list(providers.keys()))), channel)
                 continue
 
             get_url = providers[provider] + tracking_no
@@ -213,34 +213,34 @@ while True:
                         latest_status = v["status"]
 
             if already_tracking:
-                post_message(sc, "This package is already being tracked\nThe last status was:\n{0}".format(latest_status), channel)
+                post_message(bot_sc, "This package is already being tracked\nThe last status was:\n{0}".format(latest_status), channel)
             else:
                 orders[str(uuid.uuid4())] = {"tracking":{"provider": provider, "tracking_no": tracking_no, "url": get_url, "status": "", "last_updated": 0}}
-                post_message(sc, "I'll start tracking this package and keep you updated on it. :package:", channel)
+                post_message(bot_sc, "I'll start tracking this package and keep you updated on it. :package:", channel)
             continue
 
         if message.startswith("remove") or message.startswith("delete"):
             params = msg["message"].lower().split(" ")
             params.pop(0)
             if len(params) != 1:
-                post_message(sc, "Wrong amount of paramaters.\nPlease format message as \"Remove|Delete <order_id>\"", channel)
+                post_message(bot_sc, "Wrong amount of paramaters.\nPlease format message as \"Remove|Delete <order_id>\"", channel)
                 continue
             order_id = params[0]
             if order_id == "--all":
                 orders = {}
-                post_message(sc, "Removed all active orders :exclamation:", channel)
+                post_message(bot_sc, "Removed all active orders :exclamation:", channel)
                 continue
             if order_id not in orders:
                 current_orders = "\n".join(list(orders.keys()))
                 if len(orders) == 0:
-                    post_message(sc, "No active orders right now, wanna give me something to do? :raised_hands:", channel)
+                    post_message(bot_sc, "No active orders right now, wanna give me something to do? :raised_hands:", channel)
                 else:
-                    post_message(sc, "Could not find order_id in orders, the following order_id are available:\n{0}".format(current_orders), channel)
+                    post_message(bot_sc, "Could not find order_id in orders, the following order_id are available:\n{0}".format(current_orders), channel)
                 continue
             orders.pop(order_id)
-            post_message(sc, "{0} succesfully removed from orders :exclamation:".format(order_id), channel)
+            post_message(bot_sc, "{0} succesfully removed from orders :exclamation:".format(order_id), channel)
             continue
 
-        post_message(sc, "Not a valid order :question:", channel)
+        post_message(bot_sc, "Not a valid order :question:", channel)
 
     time.sleep(2)
