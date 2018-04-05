@@ -74,6 +74,9 @@ def get_package(provider, url):
             delivered = False
             return_data = []
             r = requests.get(url)
+            if r.status_code == 404:
+                return("404", delivered)
+
             data = r.json()["tuStatus"][0]["history"]
             delivered = (r.json()["tuStatus"][0]["progressBar"]["statusInfo"].lower() == "delivered")
             for item in data:
@@ -84,6 +87,9 @@ def get_package(provider, url):
             delivered = False
             return_data = []
             r = requests.get(url)
+            if len(r.json()["response"]["trackingInformationResponse"]["shipments"]) == 0:
+                return("404", delivered)
+
             data = r.json()["response"]["trackingInformationResponse"]["shipments"][0]["items"][0]["events"]
             delivered = (r.json()["response"]["trackingInformationResponse"]["shipments"][0]["status"].lower() == "delivered")
             for item in data:
@@ -142,6 +148,12 @@ while True:
                     package_status, package_delivered = get_package(v["provider"], v["url"])
                     if package_status is None:
                         continue
+
+                    if package_status == "404":
+                        keys_to_delete.append(key)
+                        post_message(sc, ":{0}: {1} - Does not seem to be a valid package, please try again".format(v['provider'], v['tracking_no']), channel)
+                        continue
+
                     if package_status[0] != v["status"]:
                         v["status"] = package_status[0]
                         post_message(sc, ":{0}: {1} - {2}".format(v["provider"], v["tracking_no"], package_status[0]), channel)
