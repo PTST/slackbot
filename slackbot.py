@@ -169,6 +169,11 @@ while True:
             do.upload_file(bot_sc, filepath, channel, room.upper())
             continue
 
+        if message.startswith("kantine") or message.startswith("menu"):
+            menu = do.get_menu()
+            do.post_message(bot_sc, menu, channel)
+            continue
+
         do.post_message(bot_sc, "Not a valid order :question:", channel)
 
     time.sleep(1)

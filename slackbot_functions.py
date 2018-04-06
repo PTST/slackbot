@@ -4,6 +4,9 @@ import os
 from PIL import Image, ImageDraw
 import json
 import io
+from lxml import html
+from datetime import datetime
+import inflect
 
 script_dir = os.path.dirname(__file__)
 
@@ -106,3 +109,42 @@ class do:
                 filename=os.path.split(filepath),
                 title=title,
                 file=io.BytesIO(f.read()))
+
+    def get_menu():
+        url = 'https://iss.inmsystems.com/TakeAway/telenoraal789/Main/Products/1'
+        p = inflect.engine()
+        """Return the content of the website on the given url in
+        a parsed lxml format that is easy to query."""
+
+        response = requests.get(url)
+        parsed_page = html.fromstring(response.content)
+        menu_raw = json.loads("".join(parsed_page.xpath("//div[@id='content']/input/@value")))
+
+
+        menu = {}
+
+        for item in menu_raw:
+            if item["description"] != "":
+                if "suppe" in item["name"].lower():
+                    name = "Soup"
+                elif "varme" in item["name"].lower():
+                    name = "Buffet"
+                else:
+                    name= item["name"]
+
+                if item["date"] not in menu:
+                    menu[item["date"]] = {}
+                menu[item["date"]][name] = "• " + item["description"].strip()
+
+        parsed_menu = []
+
+        keylist = list(menu.keys())
+        keylist.sort()
+        for key in keylist:
+            menu_date = datetime.strptime(key, '%Y%m%d')
+            menu_items = []
+            for k, v in menu[key].items():
+                menu_items.append(v)
+            parsed_menu.append("*{0}:*\n{1}".format("{0} the {1}".format(menu_date.strftime("%A"), p.ordinal(menu_date.day)), "\n".join(menu_items)))
+
+        return("\n\n".join(parsed_menu))
