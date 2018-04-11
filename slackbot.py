@@ -16,7 +16,7 @@ user_token = settings["user_token"]
 user_sc = SlackClient(user_token)
 bot_sc = SlackClient(bot_token)
 
-providers = {"postnord": "https://www.postnord.dk/api/shipment/", "gls": "https://gls-group.eu/app/service/open/rest/EU/en/rstt001?match="}
+providers = {"postnord": "https://www.postnord.dk/api/shipment/", "gls": "https://gls-group.eu/app/service/open/rest/EU/en/rstt001?match=", "bring": "https://tracking.bring.com/api/v2/tracking.json?q="}
 
 try:
     with open(os.path.join(script_dir, "orders.json"), "r") as f:

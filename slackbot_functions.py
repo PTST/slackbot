@@ -59,6 +59,19 @@ class do:
 
     def get_package(provider, url):
         try:
+            if provider == "bring":
+                delivered = False
+                return_data = []
+                r = requests.get(url, timeout=0.5)
+                if "error" in r.json()["consignmentSet"][0]:
+                    return("404", delivered)
+
+                data = r.json()["consignmentSet"][0]["packageSet"][0]["eventSet"]
+                delivered = (data[0]["status"].lower() == "delivered")
+                for item in data:
+                    return_data.append("{0} {1} - {2}".format(item["displayDate"].replace(".", "/"), item["displayTime"], item["description"]))
+                return(return_data, delivered)
+
             if provider == "gls":
                 delivered = False
                 return_data = []
@@ -84,7 +97,7 @@ class do:
                 for item in data:
                     return_data.append("{0} - {1}".format(item["eventTime"].replace("T", " "), item["eventDescription"]))
                 return(return_data, delivered)
-        except Exception:
+        except Exception as e:
             return(None, False)
 
     def find_room(room):
@@ -148,3 +161,7 @@ class do:
             parsed_menu.append("*{0}:*\n{1}".format("{0} the {1}".format(menu_date.strftime("%A"), p.ordinal(menu_date.day)), "\n".join(menu_items)))
 
         return("\n\n".join(parsed_menu))
+
+
+if __name__ == "__main__":
+    print(do.get_package("bring", "https://tracking.bring.com/api/v2/tracking.json?q=70300492378272538"))
