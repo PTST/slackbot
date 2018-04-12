@@ -7,6 +7,7 @@ from slackbot_functions import do
 import ipgetter
 
 script_dir = os.path.dirname(__file__)
+script_dir = os.path.join(script_dir, "Resources")
 
 with open(os.path.join(script_dir, "settings.json"), "r") as f:
     settings = json.load(f)
@@ -186,6 +187,7 @@ while True:
 
         if message.strip() == "ip":
             do.post_message(bot_sc, "The current IP is {0}".format(cur_ip), channel)
+            continue
 
         do.post_message(bot_sc, "Not a valid order :question:", channel)
 
