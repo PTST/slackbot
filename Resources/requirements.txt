@@ -1,0 +1,6 @@
+slackclient==1.2.1
+inflect==0.2.5
+requests==2.18.4
+ipgetter==0.7
+lxml==4.2.1
+Pillow==5.1.0
