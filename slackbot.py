@@ -4,6 +4,7 @@ import uuid
 import json
 import os
 from slackbot_functions import do
+import ipgetter
 
 script_dir = os.path.dirname(__file__)
 
@@ -13,6 +14,7 @@ with open(os.path.join(script_dir, "settings.json"), "r") as f:
 timestamp = settings["latest_ts"]
 bot_token = settings["bot_token"]
 user_token = settings["user_token"]
+cur_ip = settings["ip"]
 user_sc = SlackClient(user_token)
 bot_sc = SlackClient(bot_token)
 
@@ -23,6 +25,8 @@ try:
         orders = json.load(f)
 except FileNotFoundError:
     orders = {}
+
+
 
 should_restart = False
 keys_to_delete = []
@@ -43,13 +47,19 @@ do.post_message(bot_sc, "HEYOOO, i'm online again! :raised_hands:", channel)
 while True:
     with open(os.path.join(script_dir, "orders.json"), "w") as f:
         json.dump(orders, f)
-    if settings["latest_ts"] != timestamp:
+    if settings["latest_ts"] != timestamp or settings["ip"] != cur_ip:
         settings["latest_ts"] = timestamp
+        settings["ip"] = cur_ip
         with open(os.path.join(script_dir, "settings.json"), "w") as f:
             json.dump(settings, f)
 
     if should_restart:
         os.execl(os.path.join(script_dir, "reboot.sh"), '')
+
+    cur_ip = ipgetter.myip()
+
+    if settings["ip"] != cur_ip:
+        do.post_message(bot_sc, "The robot IP changed to {0}".format(cur_ip), channel)
 
     for key, value in orders.items():
         for k, v in value.items():
@@ -173,6 +183,9 @@ while True:
             menu = do.get_menu()
             do.post_message(bot_sc, menu, channel)
             continue
+
+        if message.strip() == "ip":
+            do.post_message(bot_sc, "The current IP is {0}".format(cur_ip), channel)
 
         do.post_message(bot_sc, "Not a valid order :question:", channel)
 
